@@ -25,7 +25,8 @@ def apply_consumer_theme(root: tk.Tk) -> None:
     style.configure("Muted.TLabel", background=bg, foreground=subtle, font=("Segoe UI", 10))
     style.configure("Card.TLabel", background=card, foreground=text, font=("Segoe UI", 10))
     style.configure("Hero.TLabel", background=bg, foreground=text, font=("Segoe UI", 19, "bold"))
-    style.configure("TLabelFrame", background=card, borderwidth=1, relief="solid")
+    style.configure("TLabelFrame", background=card, borderwidth=1, relief="solid",
+                    bordercolor="#34506d", lightcolor="#34506d", darkcolor="#34506d")
     style.configure("TLabelFrame.Label", background=card, foreground=text,
                     font=("Segoe UI", 11, "bold"))
     style.configure("TEntry", padding=6, fieldbackground=field, foreground=text,
@@ -48,7 +49,8 @@ def apply_consumer_theme(root: tk.Tk) -> None:
     style.configure("Treeview", background=field, foreground=text, fieldbackground=field,
                     borderwidth=0, rowheight=29, font=("Segoe UI", 10))
     style.configure("Treeview.Heading", background=card, foreground=text,
-                    font=("Segoe UI", 10, "bold"), padding=6)
+                    bordercolor="#2c435d", lightcolor="#2c435d", darkcolor="#2c435d",
+                    relief="flat", font=("Segoe UI", 10, "bold"), padding=6)
     style.map("Treeview", background=[("selected", "#264d78")],
               foreground=[("selected", "#ffffff")])
     # The status stays readable as the rest of the page scrolls.
