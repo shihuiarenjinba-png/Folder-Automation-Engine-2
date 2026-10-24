@@ -106,6 +106,12 @@ def main() -> None:
             if tuple(values) != ("report.pdf", "processed/report.pdf", "コピー", "予定"):
                 raise AssertionError("Incorrect visual file plan: " + str(values))
             checks.append({"case": "plan_table_shows_real_engine_output", "passed": True})
+            root.geometry("980x590+5+5")
+            root.update()
+            if not app.run_btn.winfo_ismapped() or app.run_btn.winfo_rooty() + app.run_btn.winfo_height() > root.winfo_rooty() + root.winfo_height():
+                raise AssertionError("Run button must stay within the application viewport")
+            checks.append({"case": "ja_preview_and_fixed_actions",
+                           **screenshot(root, args.output, "folder-v2-ja-preview-980x590.png")})
             checks.append({"case": "dry_run_local_only", "passed": True,
                            "source_retained": True, "destination_absent": True})
 
