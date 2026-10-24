@@ -40,6 +40,17 @@ jobs:
       - name: Build real Windows EXE and verify packaged self-test
         shell: pwsh
         run: ./build-folder-desktop-validation.ps1 -BasePythonPath ((Get-Command python).Source)
+      - name: Install screenshot capture support (QA only)
+        run: python -m pip install "Pillow>=11,<13"
+      - name: Windows GUI interactive-layout smoke (synthetic local data only)
+        run: python qa_windows_gui.py --output gui-review-evidence
+      - name: Upload Windows GUI screenshots and report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FolderAutomationEngine2-GUI-QA-Evidence
+          path: gui-review-evidence/**
+          if-no-files-found: warn
       - name: Upload QA_UNSIGNED EXE (never Store MSIX)
         uses: actions/upload-artifact@v4
         with:

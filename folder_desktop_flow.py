@@ -145,3 +145,37 @@ def build_multi_config(*, root_dir: str, input_folder: str, output_folder: str,
         seen.add(pattern.casefold())
     base["rules"] = rules
     return base
+
+def validate_saved_config(payload: object) -> dict:
+    """Rebuild only supported, explicitly no-overwrite consumer rules."""
+    if not isinstance(payload, dict):
+        raise ConfigError("Saved rules must be a JSON object")
+    rules = payload.get("rules")
+    if not isinstance(rules, list) or not 1 <= len(rules) <= 10:
+        raise ConfigError("Saved rules must contain 1–10 rules")
+    for rule in rules:
+        if not isinstance(rule, dict) or rule.get("overwrite") is not False:
+            raise ConfigError("Saved rules must never overwrite existing files")
+    first = rules[0]
+    rebuilt = build_multi_config(
+        root_dir=payload.get("root_dir", ""),
+        input_folder=payload.get("input_dir", ""),
+        output_folder=first.get("destination", ""),
+        filename_glob=first.get("glob", ""),
+        action=first.get("action", ""),
+        extra_rules=rules[1:],
+    )
+    if rebuilt != payload:
+        raise ConfigError("Unsupported or modified settings in saved configuration")
+    return rebuilt
+
+
+def read_saved_config(path: Path) -> dict:
+    """Bounded local JSON import; no network or filesystem mutations."""
+    try:
+        if path.stat().st_size > 256 * 1024:
+            raise ConfigError("Saved rule file is too large")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ConfigError("Could not read saved rules / 設定ファイルを読み取れません") from exc
+    return validate_saved_config(payload)
