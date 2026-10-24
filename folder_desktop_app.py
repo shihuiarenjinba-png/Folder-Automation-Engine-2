@@ -16,11 +16,14 @@ from tkinter import filedialog, messagebox, ttk
 
 from folder_automation import ConfigError, Engine
 from folder_desktop_flow import build_config, build_multi_config, revision, snapshot_inputs, format_activity, read_saved_config
+from consumer_preview_ui import parse_preview_rows
+from consumer_visual_style import apply_consumer_theme
 
 
 class FolderDesktop:
     def __init__(self, root: tk.Tk):
         self.root = root
+        apply_consumer_theme(root)
         self.root.title("Folder Automation Engine -2")
         self.root.geometry("900x690")
         self.root.minsize(720, 570)
@@ -51,12 +54,17 @@ class FolderDesktop:
         self.displayed_language = self.lang.get()
         for child in self.root.winfo_children():
             child.destroy()
-        canvas = tk.Canvas(self.root, highlightthickness=0)
+        # Keep the main actions and operation status in view on small screens.
+        footer = ttk.Frame(self.root, padding=(12, 7))
+        footer.pack(side="bottom", fill="x")
+        ttk.Label(footer, textvariable=self.status, style="Muted.TLabel",
+                  wraplength=1000).pack(fill="x", pady=(0, 4))
+        canvas = tk.Canvas(self.root, background="#101720", highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
-        frame = ttk.Frame(canvas, padding=18)
+        frame = ttk.Frame(canvas, padding=14)
         window = canvas.create_window((0, 0), window=frame, anchor="nw")
         frame.bind("<Configure>", lambda _event: canvas.configure(
             scrollregion=canvas.bbox("all")))
@@ -66,7 +74,7 @@ class FolderDesktop:
         heading.pack(fill="x")
         ttk.Label(
             heading, text=self.t("フォルダー自動整理", "Folder Automation Engine -2"),
-            font=("Segoe UI", 18, "bold"),
+            style="Hero.TLabel",
         ).pack(side="left", anchor="w")
         lang = ttk.Combobox(heading, textvariable=self.lang, state="readonly",
                             values=("日本語", "English"), width=10)
@@ -163,14 +171,15 @@ class FolderDesktop:
                                 "Add and reorder rules (up to 10)"),
             command=self.manage_rules)
         self.rules_btn.grid(row=8, column=0, columnspan=3, sticky="w", pady=(6, 1))
-        buttons = ttk.LabelFrame(frame, text=self.t("② 試運転 → ③ 実行", "2. Preview → 3. Run"), padding=8)
-        buttons.pack(fill="x", pady=(0, 10))
+        buttons = ttk.Frame(footer)
+        buttons.pack(fill="x")
         self.preview_btn = ttk.Button(
             buttons, text=self.t("試運転（変更なし）", "Dry Run (no changes)"), command=self.preview
         )
         self.preview_btn.pack(side="left", padx=(0, 10))
         self.run_btn = ttk.Button(
-            buttons, text=self.t("確認して1回実行", "Confirm and run once"), command=self.run_live
+            buttons, text=self.t("確認して1回実行", "Confirm and run once"),
+            command=self.run_live, style="Action.TButton"
         )
         self.run_btn.pack(side="left", padx=(0, 10))
         self.save_btn = ttk.Button(
@@ -181,8 +190,13 @@ class FolderDesktop:
             buttons, text=self.t("保存した設定を開く", "Open saved settings"), command=self.load_config
         )
         self.load_btn.pack(side="left", padx=(10, 0))
+        self.watch_toggle_btn = ttk.Button(
+            frame, text=self.t("＋ 常時監視を設定する（任意）", "+ Optional: automatic folder watching"),
+            command=self.toggle_watcher)
+        self.watch_toggle_btn.pack(anchor="w", pady=(0, 10))
         watcher = ttk.LabelFrame(frame, text=self.t("④ 安全な常時監視（任意）", "4. Opt-in folder watcher"), padding=8)
-        watcher.pack(fill="x", pady=(0, 10))
+        self.watch_panel = watcher
+        self.watcher_visible = False
         ttk.Label(watcher, text=self.t("監視間隔（秒）", "Check every (seconds)")).pack(side="left")
         self.watch_interval_entry = ttk.Entry(watcher, textvariable=self.watch_seconds, width=7)
         self.watch_interval_entry.pack(side="left", padx=(6, 10))
@@ -196,10 +210,22 @@ class FolderDesktop:
             "開始時にルールを承認します。今後届くファイルにも適用します。PCとアプリの稼働中のみ。",
             "Approved rule also processes future files. Runs only while app and PC stay on."),
             wraplength=360).pack(side="right", padx=(12, 0))
-        ttk.Label(frame, textvariable=self.status, wraplength=820).pack(anchor="w", pady=(0, 8))
-        logframe = ttk.LabelFrame(frame, text=self.t("対象ファイル・実行結果", "Preview and results"), padding=8)
+        logframe = ttk.LabelFrame(frame, text=self.t("② 変更内容の一覧・結果", "2. File plan and results"), padding=8)
         logframe.pack(fill="both", expand=True)
-        self.log = tk.Text(logframe, wrap="word", height=10, state="disabled")
+        self.preview_table = ttk.Treeview(
+            logframe, columns=("name", "destination", "action", "state"),
+            show="headings", height=5, selectmode="browse")
+        for field, label, width in (
+            ("name", self.t("ファイル名", "File"), 210),
+            ("destination", self.t("保存先", "Destination"), 310),
+            ("action", self.t("操作", "Action"), 100),
+            ("state", self.t("判定", "Status"), 120),
+        ):
+            self.preview_table.heading(field, text=label)
+            self.preview_table.column(field, width=width, stretch=True, minwidth=75)
+        self.preview_table.pack(fill="x", pady=(0, 9))
+        self.log = tk.Text(logframe, wrap="word", height=5, state="disabled",
+                           font=("Consolas", 10), relief="flat")
         scrollbar = ttk.Scrollbar(logframe, command=self.log.yview)
         self.log.configure(yscrollcommand=scrollbar.set)
         self.log.pack(side="left", fill="both", expand=True)
@@ -209,6 +235,23 @@ class FolderDesktop:
             "Safety: watch mode is optional and uses only the approved rule. Backup verification is separate.",
         ), wraplength=820).pack(anchor="w", pady=(8, 0))
         self.set_busy(self.busy)
+
+    def toggle_watcher(self) -> None:
+        """Reveal advanced monitoring only after an explicit user action."""
+        if self.watcher_visible and not self.watch_active:
+            self.watch_panel.pack_forget()
+            self.watcher_visible = False
+        elif not self.watcher_visible:
+            self.watch_panel.pack(fill="x", pady=(0, 9),
+                                  after=self.watch_toggle_btn)
+            self.watcher_visible = True
+
+    def show_file_plan(self, output: str) -> None:
+        """Display engine-emitted actions without changing approval logic."""
+        for item in self.preview_table.get_children():
+            self.preview_table.delete(item)
+        for row in parse_preview_rows(output, japanese=self.lang.get() == "日本語"):
+            self.preview_table.insert("", "end", values=row)
 
     def set_quick_pattern(self, value: str) -> None:
         """Choose a single explicit file pattern without hiding custom rules."""
@@ -610,6 +653,8 @@ class FolderDesktop:
                     continue
                 self.set_busy(False)
                 self.append(format_activity(text, japanese=self.lang.get() == "日本語"))
+                if mode in {"preview", "live"}:
+                    self.show_file_plan(text if ok else "")
                 if ok and mode == "preview":
                     try:
                         config = self.get_config()
