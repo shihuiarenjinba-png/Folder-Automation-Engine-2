@@ -15,7 +15,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from folder_automation import ConfigError, Engine
-from folder_desktop_flow import build_config, build_multi_config, revision, snapshot_inputs, format_activity
+from folder_desktop_flow import build_config, build_multi_config, revision, snapshot_inputs, format_activity, read_saved_config
 
 
 class FolderDesktop:
@@ -174,9 +174,13 @@ class FolderDesktop:
         )
         self.run_btn.pack(side="left", padx=(0, 10))
         self.save_btn = ttk.Button(
-            buttons, text=self.t("設定JSONを新規保存", "Save a new JSON config"), command=self.save_config
+            buttons, text=self.t("設定を保存", "Save settings"), command=self.save_config
         )
         self.save_btn.pack(side="left")
+        self.load_btn = ttk.Button(
+            buttons, text=self.t("保存した設定を開く", "Open saved settings"), command=self.load_config
+        )
+        self.load_btn.pack(side="left", padx=(10, 0))
         watcher = ttk.LabelFrame(frame, text=self.t("④ 安全な常時監視（任意）", "4. Opt-in folder watcher"), padding=8)
         watcher.pack(fill="x", pady=(0, 10))
         ttk.Label(watcher, text=self.t("監視間隔（秒）", "Check every (seconds)")).pack(side="left")
@@ -435,7 +439,7 @@ class FolderDesktop:
         for picker in (self.source_choose_btn, self.destination_choose_btn):
             picker.configure(state=state)
         self.action_combo.configure(state="disabled" if busy or self.watch_active else "readonly")
-        for button in (self.choose_btn, self.preview_btn, self.run_btn, self.save_btn, self.rules_btn):
+        for button in (self.choose_btn, self.preview_btn, self.run_btn, self.save_btn, self.load_btn, self.rules_btn):
             button.configure(state=state)
         self.watch_interval_entry.configure(state=state)
         self.watch_start_btn.configure(state=state)
@@ -633,6 +637,44 @@ class FolderDesktop:
             pass
         if self.root.winfo_exists():
             self.root.after(100, self.poll)
+
+    def load_config(self) -> None:
+        """Import validated no-overwrite settings; never trust arbitrary JSON."""
+        if self.busy or self.watch_active:
+            return
+        filename = filedialog.askopenfilename(
+            parent=self.root, filetypes=[("JSON", "*.json")],
+            title=self.t("保存した設定を選ぶ", "Open saved settings"),
+        )
+        if not filename:
+            return
+        try:
+            config = read_saved_config(Path(filename))
+        except (OSError, ValueError, ConfigError) as exc:
+            messagebox.showerror(self.t("設定を読み込めません", "Could not open settings"),
+                                 str(exc), parent=self.root)
+            return
+        first = config["rules"][0]
+        self.root_path.set(config["root_dir"])
+        self.input_folder.set(config["input_dir"])
+        self.output_folder.set(first["destination"])
+        self.pattern.set(first["glob"])
+        self.action.set(first["action"])
+        self.extra_rules = [
+            {"glob": item["glob"], "destination": item["destination"],
+             "action": item["action"]} for item in config["rules"][1:]
+        ]
+        self.action_display.set(self.t(
+            "コピー（元を残す）" if self.action.get() == "copy" else "移動（元から移す）",
+            "Copy (keep original)" if self.action.get() == "copy"
+            else "Move (remove original)",
+        ))
+        self.preview_revision = None
+        self.preview_input_snapshot = None
+        self.status.set(self.t(
+            "設定を読み込みました。ファイルの処理前に試運転してください。",
+            "Settings loaded. Preview before processing files.",
+        ))
 
     def save_config(self) -> None:
         if self.busy or self.watch_active:

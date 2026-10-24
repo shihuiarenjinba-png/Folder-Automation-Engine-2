@@ -108,6 +108,19 @@ def main() -> None:
                 raise AssertionError("Approved copy damaged synthetic original")
             checks.append({"case": "approved_copy", "passed": True, "source_retained": True})
 
+            # A saved configuration must survive UI changes and never reuse approval.
+            saved = safe / "safe-settings.json"
+            with patch("folder_desktop_app.filedialog.asksaveasfilename", return_value=str(saved)):
+                app.save_config()
+            if not saved.is_file():
+                raise AssertionError("Saved settings file was not created")
+            app.set_quick_pattern("*.png")
+            with patch("folder_desktop_app.filedialog.askopenfilename", return_value=str(saved)):
+                app.load_config()
+            if app.pattern.get() != "*.pdf" or app.preview_revision is not None:
+                raise AssertionError("Saved rules did not restore safely")
+            checks.append({"case": "saved_rules_restore_and_revoke_preview", "passed": True})
+
             # Rebuild the visible widget tree in English and verify action remains copy.
             app.lang.set("English")
             app.change_language()
@@ -115,7 +128,7 @@ def main() -> None:
             pump(root, lambda: "Dry Run (no changes)" in button_texts(root))
             if app.action.get() != "copy" or app.pattern.get() != "*.pdf":
                 raise AssertionError("UI translation changed folder rules")
-            checks.append({"case": "english_1280x720", **screenshot(root, args.output, "folder-v2-en-1280x720.png")})
+            checks.append({"case": "english_requested1280x720", **screenshot(root, args.output, "folder-v2-en-requested1280x720.png")})
             # UI-only language switch may not grant a new preview if the user
             # has altered a rule. Verify changing file pattern does invalidate.
             app.set_quick_pattern("*.png")
@@ -139,7 +152,12 @@ def main() -> None:
 
     result = {"product": "Folder Automation Engine -2", "scope": "CI Windows GUI QA, synthetic files only",
               "store_submission": False, "installed_msix": False,
-              "human_review_complete": False, "checks": checks}
+              "human_review_complete": False,
+              "full_1280x720_viewport_verified": any(
+                  item.get("case") == "english_requested1280x720"
+                  and item.get("resolution", [0, 0])[0] >= 1280
+                  and item.get("resolution", [0, 0])[1] >= 720 for item in checks),
+              "checks": checks}
     (args.output / "gui_qa_report.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("WINDOWS-GUI-QA PASS: " + json.dumps(result, ensure_ascii=False))
