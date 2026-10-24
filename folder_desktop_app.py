@@ -25,8 +25,8 @@ class FolderDesktop:
         self.root = root
         apply_consumer_theme(root)
         self.root.title("Folder Automation Engine -2")
-        self.root.geometry("900x690")
-        self.root.minsize(720, 570)
+        self.root.geometry("940x600")
+        self.root.minsize(780, 550)
         self.lang = tk.StringVar(value="日本語")
         self.displayed_language = "日本語"
         self.root_path = tk.StringVar()
