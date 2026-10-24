@@ -60,6 +60,7 @@ class FolderDesktop:
         ttk.Label(footer, textvariable=self.status, style="Muted.TLabel",
                   wraplength=1000).pack(fill="x", pady=(0, 4))
         canvas = tk.Canvas(self.root, background="#101720", highlightthickness=0)
+        self.scroll_canvas = canvas
         scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
@@ -212,6 +213,7 @@ class FolderDesktop:
             wraplength=360).pack(side="right", padx=(12, 0))
         logframe = ttk.LabelFrame(frame, text=self.t("② 変更内容の一覧・結果", "2. File plan and results"), padding=8)
         logframe.pack(fill="both", expand=True)
+        self.results_frame = logframe
         self.preview_table = ttk.Treeview(
             logframe, columns=("name", "destination", "action", "state"),
             show="headings", height=5, selectmode="browse")
@@ -252,6 +254,16 @@ class FolderDesktop:
             self.preview_table.delete(item)
         for row in parse_preview_rows(output, japanese=self.lang.get() == "日本語"):
             self.preview_table.insert("", "end", values=row)
+
+    def scroll_to_plan(self) -> None:
+        """Reveal the actual file plan after a successful non-mutating preview."""
+        if not self.root.winfo_exists():
+            return
+        self.root.update_idletasks()
+        content = self.results_frame.master
+        total = max(1, content.winfo_height())
+        y = max(0, self.results_frame.winfo_y() - 10)
+        self.scroll_canvas.yview_moveto(min(1.0, y / total))
 
     def set_quick_pattern(self, value: str) -> None:
         """Choose a single explicit file pattern without hiding custom rules."""
@@ -664,6 +676,8 @@ class FolderDesktop:
                     except (OSError, ValueError, ConfigError):
                         self.preview_revision = None
                         self.preview_input_snapshot = None
+                    if self.preview_revision:
+                        self.root.after_idle(self.scroll_to_plan)
                     self.status.set(self.t(
                         "試運転が完了しました。変更対象を確認してから実行してください。" if self.preview_revision else
                         "対象ファイルが変わりました。再試運転してください。",
