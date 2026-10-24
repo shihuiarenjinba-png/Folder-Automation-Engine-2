@@ -1,0 +1,48 @@
+name: Folder -2 Windows QA (unsigned EXE only)
+on:
+  push:
+    branches:
+      - codex/consumer-v2-initial-20261024
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile code and tests
+        run: python -m compileall -q folder_automation.py folder_desktop_flow.py folder_desktop_app.py tests
+      - name: Run copied folder safety and consumer UI tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Run package-entrypoint dry-run smoke test
+        run: python folder_desktop_app.py --self-test
+      - name: Check PowerShell script syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errorsFound = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ./build-folder-desktop-validation.ps1).Path,
+            [ref]$tokens,[ref]$errorsFound)
+          if ($errorsFound.Count -gt 0) { throw "PowerShell script parse failed" }
+      - name: Build real Windows EXE and verify packaged self-test
+        shell: pwsh
+        run: ./build-folder-desktop-validation.ps1 -BasePythonPath ((Get-Command python).Source)
+      - name: Upload QA_UNSIGNED EXE (never Store MSIX)
+        uses: actions/upload-artifact@v4
+        with:
+          name: FolderAutomationEngine2-EXE-QA_UNSIGNED
+          path: dist-folder-validation/**
+          if-no-files-found: error
