@@ -82,6 +82,10 @@ def main() -> None:
             pump(root, lambda: root.winfo_ismapped() == 1)
             assert "試運転（変更なし）" in button_texts(root)
             assert "確認して1回実行" in button_texts(root)
+            if app.watch_panel.winfo_manager():
+                raise AssertionError("Advanced auto-watch must be collapsed by default")
+            if not app.run_btn.winfo_ismapped():
+                raise AssertionError("Main execution button must remain visible")
             checks.append({"case": "japanese_1024x768", **screenshot(root, args.output, "folder-v2-ja-1024x768.png")})
 
             # Native picker selection is patched to only return synthetic folders.
@@ -96,6 +100,18 @@ def main() -> None:
             pump(root, lambda: app.preview_revision is not None and not app.busy)
             if not sample.exists() or (output / sample.name).exists():
                 raise AssertionError("Dry Run unexpectedly wrote or removed files")
+            if len(app.preview_table.get_children()) != 1:
+                raise AssertionError("Plan table missing the exact one-file preview")
+            values = app.preview_table.item(app.preview_table.get_children()[0], "values")
+            if tuple(values) != ("report.pdf", "processed/report.pdf", "コピー", "予定"):
+                raise AssertionError("Incorrect visual file plan: " + str(values))
+            checks.append({"case": "plan_table_shows_real_engine_output", "passed": True})
+            root.geometry("980x590+5+5")
+            root.update()
+            if not app.run_btn.winfo_ismapped() or app.run_btn.winfo_rooty() + app.run_btn.winfo_height() > root.winfo_rooty() + root.winfo_height():
+                raise AssertionError("Run button must stay within the application viewport")
+            checks.append({"case": "ja_preview_and_fixed_actions",
+                           **screenshot(root, args.output, "folder-v2-ja-preview-980x590.png")})
             checks.append({"case": "dry_run_local_only", "passed": True,
                            "source_retained": True, "destination_absent": True})
 
@@ -107,6 +123,13 @@ def main() -> None:
             if not sample.exists() or (output / sample.name).read_bytes() != sample.read_bytes():
                 raise AssertionError("Approved copy damaged synthetic original")
             checks.append({"case": "approved_copy", "passed": True, "source_retained": True})
+            app.toggle_watcher()
+            if not app.watch_panel.winfo_manager():
+                raise AssertionError("Optional watcher section did not open")
+            app.toggle_watcher()
+            if app.watch_panel.winfo_manager():
+                raise AssertionError("Optional watcher section did not close")
+            checks.append({"case": "optional_watcher_expand_and_collapse", "passed": True})
 
             # A saved configuration must survive UI changes and never reuse approval.
             saved = safe / "safe-settings.json"
