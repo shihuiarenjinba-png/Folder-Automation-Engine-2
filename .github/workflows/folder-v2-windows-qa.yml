@@ -15,11 +15,11 @@ jobs:
     timeout-minutes: 35
     steps:
       - name: Checkout exact source commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Compile code and tests
@@ -45,14 +45,14 @@ jobs:
       - name: Windows GUI interactive-layout smoke (synthetic local data only)
         run: python qa_windows_gui.py --output gui-review-evidence
       - name: Upload Windows GUI screenshots and report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: FolderAutomationEngine2-GUI-QA-Evidence
           path: gui-review-evidence/**
           if-no-files-found: warn
       - name: Upload QA_UNSIGNED EXE (never Store MSIX)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: FolderAutomationEngine2-EXE-QA_UNSIGNED
           path: dist-folder-validation/**
